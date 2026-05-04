@@ -1,0 +1,108 @@
+{
+   nsswitch reading its configuration from /etc/nsswitch.conf
+   Memcheck:Leak
+   fun:malloc
+   fun:nss_parse_service_list
+   fun:__nss_database_lookup
+}
+
+{
+   g++ std::string memory leak
+   Memcheck:Leak
+   fun:_Znwm
+   fun:_ZNSs4_Rep9_S_createEmmRKSaIcE
+   fun:_ZNSs9_M_mutateEmmm
+   fun:_ZNSs15_M_replace_safeEmmPKcm
+   fun:main
+}
+
+{
+   g++ std::string memory leak
+   Memcheck:Leak
+   fun:_Znwm
+   fun:_ZNSs4_Rep9_S_createEmmRKSaIcE
+   ...
+   fun:_ZNSsC1EPKcRKSaIcE
+   fun:main
+}
+
+{
+   pam library leaks
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:pam_open_session
+   ...
+   fun:main
+}
+
+{
+   pam library leaks v2
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:pam_modutil_getpwnam
+   ...
+   fun:main
+}
+
+{
+   pam library leaks v3
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:_Z16open_pam_sessionv
+   fun:main
+}
+
+{
+   fuse umount missing release calls
+   Memcheck:Leak
+   fun:malloc
+   fun:_ZN12LizardClientL14fs_newfileinfoEhj
+   ...
+   fun:start_thread
+   fun:clone
+}
+
+{
+   fuse mount stack of running threads
+   Memcheck:Leak
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   ...
+   fun:main
+}
+
+{
+   Berkeley DB close
+   Memcheck:Param
+   pwrite64(buf)
+   ...
+   fun:__db_close
+   fun:__db_close_pp
+}
+
+{
+   For ShortSystemTests.test_legacy_ec_upgrade: Unititialized values used in std::sort in old LizardFS version (3.11)
+   Memcheck:Cond
+   ...
+   src:matocsserv.cc:362
+   src:chunks.cc:1933
+   src:chunks.cc:2585
+   src:chunks.cc:2668
+   src:event_loop.cc:249
+   src:main.cc:1022
+}
+
+{
+   For ShortSystemTests.test_legacy_ec_upgrade: Unititialized values used in std::stable_sort in old LizardFS version (3.11)
+   Memcheck:Cond
+   fun:_ZNSt15__tuple_compareISt5tupleIJllhEES1_Lm2ELm3EE6__lessERKS1_S4_
+   fun:_ZNSt15__tuple_compareISt5tupleIJllhEES1_Lm1ELm3EE6__lessERKS1_S4_
+   fun:_ZNSt15__tuple_compareISt5tupleIJllhEES1_Lm0ELm3EE6__lessERKS1_S4_
+   fun:_ZStltIJllhEJllhEEbRKSt5tupleIJDpT_EERKS0_IJDpT0_EE
+   src:get_servers_for_new_chunk.cc:69
+}

@@ -1,0 +1,48 @@
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+collect_sources(COMMON)
+
+if(MINGW)
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lockfile.cc")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metadata.cc")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/setup.cc")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/loop_watchdog.cc")
+endif()
+
+if(ISAL_LIBRARY)
+  list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/galois_field_isal.cc")
+  list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/galois_field_encode.cc")
+endif()
+
+
+shared_add_library(mfscommon ${COMMON_SOURCES})
+if (HAVE_CRCUTIL)
+  # Use crcutil Library
+  include_directories(SYSTEM ${CRCUTIL_INCLUDE_DIRS}) # skip compiler warnings for external crcutil headers
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CRCUTIL_CXX_FLAGS}")
+  shared_target_link_libraries(mfscommon ${CRCUTIL_LIBRARIES})
+endif()
+if (ZLIB_FOUND)
+  shared_target_link_libraries(mfscommon ${ZLIB_LIBRARIES})
+endif()
+if (RT_LIBRARY)
+  shared_target_link_libraries(mfscommon ${RT_LIBRARY})
+endif()
+if(TCMALLOC_LIBRARY)
+  shared_target_link_libraries(mfscommon ${TCMALLOC_LIBRARY})
+endif()
+if(JEALLOC_LIBRARY)
+  shared_target_link_libraries(mfscommon ${JEMALLOC_LIBRARY})
+endif()
+if(SOCKET_FOUND)
+  shared_target_link_libraries(mfscommon ${SOCKET_LIBRARIES})
+endif()
+if(ISAL_LIBRARY)
+  shared_target_link_libraries(mfscommon STATIC ${ISAL_LIBRARY} SHARED ${ISAL_PIC_LIBRARY})
+endif()
+if(JUDY_LIBRARY)
+  shared_target_link_libraries(mfscommon ${JUDY_LIBRARY})
+endif()
+
+create_unittest(mfscommon ${COMMON_TESTS} ../master/goal_config_loader.cc)
+link_unittest(mfscommon mfscommon)

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+
+import cgi
+import cgitb
+import os
+import socket
+import struct
+import sys
+cgitb.enable()
+
+PROTO_BASE = @PROTO_BASE@
+
+CUTOAN_CHART = (PROTO_BASE + 504)
+ANTOCU_CHART = (PROTO_BASE + 505)
+
+FIELDS = cgi.FieldStorage()
+
+if "host" in FIELDS:
+    HOST = FIELDS.getvalue("host")
+else:
+    HOST = ''
+if "port" in FIELDS:
+    try:
+        PORT = int(FIELDS.getvalue("port"))
+    except ValueError:
+        PORT = 0
+else:
+    PORT = 0
+if "id" in FIELDS:
+    try:
+        CHART_ID = int(FIELDS.getvalue("id"))
+    except ValueError:
+        CHART_ID = -1
+else:
+    CHART_ID = -1
+
+
+def mysend(sock, msg):
+    totalsent = 0
+    while totalsent < len(msg):
+        sent = sock.send(msg[totalsent:])
+        if sent == 0:
+            raise RuntimeError("socket connection broken")
+        totalsent = totalsent + sent
+
+
+def myrecv(sock, leng):
+    msg = b''
+    while len(msg) < leng:
+        chunk = sock.recv(leng-len(msg))
+        if chunk == b'':
+            raise RuntimeError("socket connection broken")
+        msg = msg + chunk
+    return msg
+
+
+def handle_error():
+    rootpath = os.getenv('DOCUMENT_ROOT', default='')
+    resource_path = os.path.join(rootpath, 'err.gif')
+
+    sys.stdout.write(b"Content-Type: image/gif\r\n\r\n")
+    f = open(resource_path, mode='rb')
+    sys.stdout.write(f.read())
+    f.close()
+
+
+if HOST == '' or PORT == 0 or CHART_ID < 0:
+    handle_error()
+else:
+    try:
+        s = socket.socket()
+        s.connect((HOST, PORT))
+        mysend(s, struct.pack(">LLL", CUTOAN_CHART, 4, CHART_ID))
+        header = myrecv(s, 8)
+        cmd, length = struct.unpack(">LL", header)
+        if cmd == ANTOCU_CHART and length > 0:
+            data = myrecv(s, length)
+            if data[:3] == b"GIF":
+                sys.stdout.write(b"Content-Type: image/gif\r\n\r\n")
+                sys.stdout.write(data)
+            elif data[:8] == b"\x89PNG\x0d\x0a\x1a\x0a":
+                sys.stdout.write(b"Content-Type: image/png\r\n\r\n")
+                sys.stdout.write(data)
+            elif data[:9] == b"timestamp":
+                sys.stdout.write(b"Content-Type: text\r\n\r\n")
+                sys.stdout.write(data)
+            else:
+                handle_error()
+        else:
+            handle_error()
+        s.close()
+    except Exception:
+        handle_error()

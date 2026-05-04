@@ -1,0 +1,120 @@
+diff --git a/fs/fuse/dir.c b/fs/fuse/dir.c
+index c3eb2c4..8272f14 100644
+--- a/fs/fuse/dir.c
++++ b/fs/fuse/dir.c
+@@ -10,2 +10,6 @@
+ 
++#include <linux/posix_acl.h>
++#include <linux/posix_acl_xattr.h>
++#include <linux/version.h>
++
+ #include <linux/pagemap.h>
+@@ -1736,6 +1740,5 @@ static int fuse_setxattr(struct dentry *entry, const char *name,
+ 
+-static ssize_t fuse_getxattr(struct dentry *entry, const char *name,
++static ssize_t _fuse_getxattr(struct inode *inode, const char *name,
+ 			     void *value, size_t size)
+ {
+-	struct inode *inode = entry->d_inode;
+ 	struct fuse_conn *fc = get_fuse_conn(inode);
+@@ -1786,2 +1789,53 @@ static ssize_t fuse_getxattr(struct dentry *entry, const char *name,
+ 
++static ssize_t fuse_getxattr(struct dentry *entry, const char *name,
++			     void *value, size_t size) {
++	return _fuse_getxattr(entry->d_inode, name, value, size);
++}
++
++static struct posix_acl *fuse_get_acl(struct inode *inode, int type) {
++	struct posix_acl *acl = NULL;
++	char *xattr;
++	int length = 4096;
++
++	struct fuse_conn *fc = get_fuse_conn(inode);
++	// If ACLs are not enabled return empty entry:
++	if (!(fc->flags & FUSE_ACL)) {
++		set_cached_acl(inode, ACL_TYPE_ACCESS, NULL);
++		return ERR_PTR(-EAGAIN);
++	}
++
++	xattr = kmalloc(length, GFP_KERNEL);
++	if (!xattr)
++		return ERR_PTR(-ENOMEM);
++
++	length = _fuse_getxattr(inode, POSIX_ACL_XATTR_ACCESS, xattr, length);
++	if (length == -ERANGE) {
++		kfree(xattr);
++		length = _fuse_getxattr(inode, POSIX_ACL_XATTR_ACCESS, NULL, 0);
++		if (length < 0) {
++			return ERR_PTR(length);
++		}
++		length += 1024;		// in case somebody just added more ACLs
++		xattr = kmalloc(length, GFP_KERNEL);
++		if (!xattr)
++			return ERR_PTR(-ENOMEM);
++		length = _fuse_getxattr(inode, POSIX_ACL_XATTR_ACCESS, xattr,
++				length);
++	}
++
++	if (length >= 0) {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
++		acl = posix_acl_from_xattr(&init_user_ns, xattr, length);
++#else
++		acl = posix_acl_from_xattr(xattr, length);
++#endif
++	} else if (length == -ENODATA) {
++		acl = NULL;
++	} else {
++		acl = ERR_PTR(length);
++	}
++	kfree(xattr);
++	return acl;
++}
++
+ static ssize_t fuse_listxattr(struct dentry *entry, char *list, size_t size)
+@@ -1883,2 +1937,3 @@ static const struct inode_operations fuse_dir_inode_operations = {
+ 	.getxattr	= fuse_getxattr,
++	.get_acl	= fuse_get_acl,
+ 	.listxattr	= fuse_listxattr,
+@@ -1904,2 +1959,3 @@ static const struct inode_operations fuse_common_inode_operations = {
+ 	.getxattr	= fuse_getxattr,
++	.get_acl	= fuse_get_acl,
+ 	.listxattr	= fuse_listxattr,
+diff --git a/fs/fuse/inode.c b/fs/fuse/inode.c
+index d468643..b72038c 100644
+--- a/fs/fuse/inode.c
++++ b/fs/fuse/inode.c
+@@ -448,2 +448,3 @@ enum {
+ 	OPT_BLKSIZE,
++	OPT_ACL,
+ 	OPT_ERR
+@@ -460,2 +461,3 @@ static const match_table_t tokens = {
+ 	{OPT_BLKSIZE,			"blksize=%u"},
++	{OPT_ACL,			"acl"},
+ 	{OPT_ERR,			NULL}
+@@ -533,2 +535,6 @@ static int parse_fuse_opt(char *opt, struct fuse_mount_data *d, int is_bdev)
+ 
++		case OPT_ACL:
++			d->flags |= FUSE_ACL;
++			break;
++
+ 		default:
+@@ -554,2 +560,4 @@ static int fuse_show_options(struct seq_file *m, struct dentry *root)
+ 		seq_puts(m, ",default_permissions");
++	if (fc->flags & FUSE_ACL)
++		seq_puts(m, ",acl");
+ 	if (fc->flags & FUSE_ALLOW_OTHER)
+diff --git a/include/uapi/linux/fuse.h b/include/uapi/linux/fuse.h
+index 60bb2f9..38e7c83 100644
+--- a/include/uapi/linux/fuse.h
++++ b/include/uapi/linux/fuse.h
+@@ -205,2 +205,3 @@ struct fuse_file_lock {
+  *
++ * FUSE_ACL: access control lists
+  * FUSE_ASYNC_READ: asynchronous read requests
+@@ -222,2 +223,3 @@ struct fuse_file_lock {
+  */
++#define FUSE_ACL		(1 << 31)
+ #define FUSE_ASYNC_READ		(1 << 0)
+-- 
+2.0.0-rc0
+

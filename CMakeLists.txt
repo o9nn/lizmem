@@ -1,0 +1,328 @@
+cmake_minimum_required(VERSION 2.8)
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+  message(FATAL_ERROR
+    "In-source builds are disabled for this project. This is for your "
+    "safety. To build the project, please create a build tree in "
+    "a separate directory, for example:\n"
+    "     mkdir ${CMAKE_SOURCE_DIR}/build\n"
+    "     cd ${CMAKE_SOURCE_DIR}/build\n"
+    "     cmake ..\n"
+    "Before doing that you may need to clean up after this try by removing "
+    "CMakeCache.txt file and CMakeFiles/ directory.\n"
+    "If you REALLY need an in-source build, remove this check from "
+    "${CMAKE_CURRENT_LIST_FILE} and try again."
+  )
+endif()
+
+option(ENABLE_WERROR            "Enable treating compilation warnings as errors"         OFF)
+option(ENABLE_LIGHTMFS          "Enable light version of LizardFS"                       OFF)
+option(ENABLE_UTILS             "Enable building additional binaries used e.g. in tests" OFF)
+option(ENABLE_TESTS             "Enable building unit and functional tests"              OFF)
+option(ENABLE_DOCS              "Enable building the documentation"                      ON)
+option(ENABLE_EXIT_ON_USR1      "Enable handler for SIGUSR1 which calls exit()"          OFF)
+option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"          OFF)
+option(ENABLE_DEBUG_LOG         "Enable prefix based debug logs"                         OFF)
+option(ENABLE_URAFT             "Enable installation of uraft util"                      ON)
+option(ENABLE_VERBOSE_ASCIIDOC  "Enable verbose output of asciidoc"                      OFF)
+option(ENABLE_TCMALLOC          "Enable use of tcmalloc-minimal library"                 OFF)
+option(ENABLE_JEMALLOC          "Enable use of jemalloc library"                         OFF)
+option(ENABLE_POLONAISE         "Enable polonaise"                                       ON)
+option(ENABLE_CLIENT_LIB        "Enable dynamic client library (liblizardfs-client)"     OFF)
+option(ENABLE_OFFICIAL_BUILD    "Make the build official"                                OFF)
+option(SET_RC_BUILD_NUMBER      "Sets optional -rcN build suffix"                        OFF)
+# end of LizardFS options
+option(ENABLE_TRACES            "Enable traces"                                          OFF)
+option(ENABLE_CRC               "Enable checksums"                                       ON)
+option(ENABLE_REQUEST_LOG       "Enable logging request times"                           OFF)
+option(USE_LEGACY_READ_MESSAGES "Enable sending old type of messages by mount"           OFF)
+option(ENABLE_NFS_GANESHA       "Enable nfs-ganesha plugin"                              OFF)
+option(ENABLE_CCACHE            "Enable ccache during compilation"                       ON)
+
+
+find_program(CCACHE_FOUND ccache)
+message(STATUS "ENABLE_CCACHE: ${ENABLE_CCACHE}")
+message(STATUS "CCACHE_FOUND: ${CCACHE_FOUND}")
+if(ENABLE_CCACHE AND CCACHE_FOUND)
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+  message(STATUS "Using ccache")
+endif()
+
+enable_language(C)
+include(GNUInstallDirs)
+
+set(BIN_SUBDIR                  "${CMAKE_INSTALL_FULL_BINDIR}")
+set(SBIN_SUBDIR                 "${CMAKE_INSTALL_FULL_SBINDIR}")
+set(LIB_SUBDIR                  "${CMAKE_INSTALL_FULL_LIBDIR}")
+set(MAN_SUBDIR                  "${CMAKE_INSTALL_FULL_MANDIR}")
+set(CGI_SUBDIR                  "${CMAKE_INSTALL_FULL_DATAROOTDIR}/mfscgi")
+set(INCL_SUBDIR                 "${CMAKE_INSTALL_FULL_INCLUDEDIR}/lizardfs")
+
+set(ETC_SUBDIR                  "${CMAKE_INSTALL_FULL_SYSCONFDIR}/lizardfs")
+set(RUN_SUBDIR                  "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/run/lizardfs")
+set(DATA_SUBDIR                 "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/lizardfs")
+set(USR_SHARE_DOC               "${CMAKE_INSTALL_FULL_DOCDIR}")
+set(EXAMPLES_SUBDIR             "examples")
+set(CHUNKSERVER_NAME            "lizardfs-chunkserver")
+set(CLIENT_NAME                 "lizardfs-client")
+set(METALOGGER_NAME             "lizardfs-metalogger")
+set(MASTER_NAME                 "lizardfs-master")
+set(URAFT_NAME                  "lizardfs-uraft")
+string(REGEX REPLACE "/$" "" USR_SHARE_DOC_NO_SLASH "${USR_SHARE_DOC}")
+set(CHUNKSERVER_EXAMPLES_SUBDIR "${USR_SHARE_DOC_NO_SLASH}/${CHUNKSERVER_NAME}/${EXAMPLES_SUBDIR}")
+set(CLIENT_EXAMPLES_SUBDIR      "${USR_SHARE_DOC_NO_SLASH}/${CLIENT_NAME}/${EXAMPLES_SUBDIR}")
+set(METALOGGER_EXAMPLES_SUBDIR  "${USR_SHARE_DOC_NO_SLASH}/${METALOGGER_NAME}/${EXAMPLES_SUBDIR}")
+set(MFSMASTER_EXAMPLES_SUBDIR   "${USR_SHARE_DOC_NO_SLASH}/${MASTER_NAME}/${EXAMPLES_SUBDIR}")
+set(URAFT_EXAMPLES_SUBDIR       "${USR_SHARE_DOC_NO_SLASH}/${URAFT_NAME}/${EXAMPLES_SUBDIR}")
+
+
+# Aliases
+set(SBIN_PATH                   "${SBIN_SUBDIR}")
+set(LIB_PATH                    "${LIB_SUBDIR}")
+set(CGI_PATH                    "${CGI_SUBDIR}")
+set(ETC_PATH                    "${ETC_SUBDIR}")
+set(DATA_PATH                   "${DATA_SUBDIR}")
+
+set(DEFAULT_USER                 "lizardfs"                 CACHE STRING "Default user to run daemons as")
+set(DEFAULT_GROUP                "lizardfs"                 CACHE STRING "Default group to run daemons as")
+set(DEFAULT_MASTER_HOSTNAME      "mfsmaster"                CACHE STRING "Default master server hostname")
+set(DEFAULT_MASTER_PORT          "9421"                     CACHE STRING "Default master server port number")
+set(DEFAULT_MOUNTED_SUBFOLDER    "/"                        CACHE STRING "Default subfolder to be mounted")
+set(DEFAULT_MFSMOUNT_CONFIG_PATH "${ETC_PATH}/mfsmount.cfg" CACHE STRING "Default full path to mfsmount configuration file")
+set(LIZARDFS_BLOCKS_IN_CHUNK     1024                       CACHE INT "Number of blocks in one chunk")
+set(LIZARDFS_BLOCK_SIZE          65536                      CACHE INT "Number of bytes in one block")
+
+message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "DEFAULT_USER: ${DEFAULT_USER}")
+message(STATUS "DEFAULT_GROUP: ${DEFAULT_GROUP}")
+message(STATUS "LIZARDFS_BLOCKS_IN_CHUNK: ${LIZARDFS_BLOCKS_IN_CHUNK}")
+message(STATUS "LIZARDFS_BLOCK_SIZE: ${LIZARDFS_BLOCK_SIZE}")
+message(STATUS "ENABLE_WERROR: ${ENABLE_WERROR}")
+message(STATUS "ENABLE_LIGHTMFS: ${ENABLE_LIGHTMFS}")
+message(STATUS "ENABLE_UTILS: ${ENABLE_UTILS}")
+message(STATUS "ENABLE_TESTS: ${ENABLE_TESTS}")
+message(STATUS "ENABLE_DOCS: ${ENABLE_DOCS}")
+message(STATUS "ENABLE_EXIT_ON_USR1: ${ENABLE_EXIT_ON_USR1}")
+message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+message(STATUS "ENABLE_DEBUG_LOG: ${ENABLE_DEBUG_LOG}")
+message(STATUS "ENABLE_VERBOSE_ASCIIDOC: ${ENABLE_VERBOSE_ASCIIDOC}")
+message(STATUS "ENABLE_TCMALLOC: ${ENABLE_TCMALLOC}")
+message(STATUS "ENABLE_JEMALLOC: ${ENABLE_JEMALLOC}")
+message(STATUS "ENABLE_POLONAISE: ${ENABLE_POLONAISE}")
+message(STATUS "ENABLE_CLIENT_LIB: ${ENABLE_CLIENT_LIB}")
+message(STATUS "ENABLE_OFFICIAL_BUILD: ${ENABLE_OFFICIAL_BUILD}")
+message(STATUS "SET_RC_BUILD_NUMBER: ${SET_RC_BUILD_NUMBER}")
+message(STATUS "ENABLE_URAFT: ${ENABLE_URAFT}")
+# end of LizardFS options values
+message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
+message(STATUS "ENABLE_CRC: ${ENABLE_CRC}")
+message(STATUS "ENABLE_REQUEST_LOG: ${ENABLE_REQUEST_LOG}")
+message(STATUS "USE_LEGACY_READ_MESSAGES: ${USE_LEGACY_READ_MESSAGES}")
+message(STATUS "ENABLE_NFS_GANESHA: ${ENABLE_NFS_GANESHA}")
+
+execute_process(COMMAND "git" "rev-parse" "HEAD"
+  OUTPUT_VARIABLE GIT_SHA1 RESULT_VARIABLE GIT_SHA1_RETURN_VALUE
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+if(NOT ENABLE_OFFICIAL_BUILD AND GIT_SHA1_RETURN_VALUE EQUAL 0)
+  set(PACKAGE_VERSION_SUFFIX "-devel-${GIT_SHA1}")
+elseif(NOT ENABLE_OFFICIAL_BUILD)
+  set(PACKAGE_VERSION_SUFFIX "-devel")
+elseif(SET_RC_BUILD_NUMBER)
+  set(PACKAGE_VERSION_SUFFIX "-rc${SET_RC_BUILD_NUMBER}")
+else()
+  set(PACKAGE_VERSION_SUFFIX "")
+endif()
+
+if(ENABLE_TESTS)
+  if(NOT THROW_INSTEAD_OF_ABORT)
+    message(STATUS "Tests require THROW_INSTEAD_OF_ABORT to be set to YES, changing passed value:")
+    set(THROW_INSTEAD_OF_ABORT YES)
+    message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
+  endif()
+  if(NOT ENABLE_CLIENT_LIB)
+    message(STATUS "Tests require ENABLE_CLIENT_LIB to be set to YES, changing passed value:")
+    set(ENABLE_CLIENT_LIB YES)
+    message(STATUS "ENABLE_CLIENT_LIB: ${ENABLE_CLIENT_LIB}")
+  endif()
+  set(BUILD_TESTS ON)
+  set(BUILD_UTILS ON)
+  set(LIZARDFS_ENABLE_DEBUG_LOG ON)
+endif()
+
+if(ENABLE_CLIENT_LIB)
+  set(ENABLE_PIC_TARGETS ON)
+endif()
+
+project(lizardfs)
+set(PACKAGE_VERSION_MAJOR 3)
+set(PACKAGE_VERSION_MINOR 13)
+set(PACKAGE_VERSION_MICRO 0)
+set(PACKAGE_VERSION
+    "${PACKAGE_VERSION_MAJOR}.${PACKAGE_VERSION_MINOR}.${PACKAGE_VERSION_MICRO}${PACKAGE_VERSION_SUFFIX}")
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64" )
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m64")
+endif()
+if(MINGW)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat=0")
+endif()
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe -std=c++17 -pthread -Wall -Wextra -Werror -Wpedantic -fwrapv")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -g")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -ftree-vectorize -g -fno-omit-frame-pointer")
+set(CMAKE_CXX_FLAGS_COVERAGE "-O0 -g --coverage")
+set(CMAKE_CXX_FLAGS_CLANG_ANALYZE "--analyze -Xanalyzer -analyzer-output=text")
+set(CMAKE_CXX_FLAGS_CLANG_SANITIZE_THREAD "-g -O0 -fsanitize=thread")
+set(CMAKE_CXX_FLAGS_CXXDEBUG "-O0 -g -D_GLIBCXX_DEBUG")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c17 -Wall")
+
+add_definitions(-D_LARGEFILE_SOURCE)
+add_definitions(-D_FILE_OFFSET_BITS=64)
+add_definitions(-DLIZARDFS_HAVE_CONFIG_H)
+add_definitions(-D__STDC_LIMIT_MACROS)
+add_definitions(-D__STDC_CONSTANT_MACROS)
+add_definitions(-D__STDC_FORMAT_MACROS)
+# Disable default stdout logger, enabling it breaks some features of LizardFS
+# Enable it on your own responsibility
+add_definitions(-DSPDLOG_DISABLE_DEFAULT_LOGGER)
+add_definitions(-DSPDLOG_FMT_EXTERNAL)
+add_definitions(-DFMT_HEADER_ONLY)
+if(MINGW)
+  add_definitions(-DWINVER=0x0602)
+  add_definitions(-D_WIN32_WINNT=0x0602)
+  add_definitions(-DFD_SETSIZE=1024)
+endif()
+
+# All the environment tests (libs, includes, etc.) live here:
+include(EnvTests)
+include(Libraries)
+include(CollectSources)
+include(CreateUnitTest)
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments")
+endif()
+
+if(CXX_HAS_WNOGNU)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-gnu")
+endif()
+
+if(ENABLE_LIGHTMFS)
+  set(PROTO_BASE 65536)
+  set(LIGHT_MFS 1)
+else()
+  set(PROTO_BASE 0)
+  set(LIGHT_MFS 0)
+endif()
+
+if(ENABLE_UTILS)
+  set(BUILD_UTILS ON)
+endif()
+
+if(ENABLE_DEBUG_LOG)
+  set(LIZARDFS_ENABLE_DEBUG_LOG ON)
+endif()
+
+if(NOT Boost_INCLUDE_DIRS)
+  message(FATAL_ERROR "Boost headers are required")
+endif()
+
+if(ENABLE_TRACES)
+  add_definitions(-DENABLE_TRACES)
+endif()
+
+if(ENABLE_REQUEST_LOG)
+  if(NOT Boost_IOSTREAMS_FOUND)
+    message(FATAL_ERROR "Boost iostreams is required if request time logging is enabled")
+  endif()
+  set(ADDITIONAL_LIBS ${Boost_IOSTREAMS_LIBRARY})
+  add_definitions(-DENABLE_REQUEST_LOG)
+endif()
+
+set(CHARTS_CSV_CHARTID_BASE 90000)
+
+if(THROW_INSTEAD_OF_ABORT)
+  add_definitions(-DTHROW_INSTEAD_OF_ABORT)
+endif()
+
+if(USE_LEGACY_READ_MESSAGES)
+  add_definitions(-DUSE_LEGACY_READ_MESSAGES)
+endif()
+
+if(ENABLE_CRC)
+  message(STATUS "CRC checksums enabled")
+  add_definitions(-DENABLE_CRC)
+else()
+  message(STATUS "CRC checksums disabled")
+endif()
+
+set(CHARTS_CSV_CHARTID_BASE 90000)
+
+# Create config.h file
+configure_file(config.h.in config.h)
+include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
+
+# main.cc shared by some LizardFS applications
+set(MAIN_SRC ${CMAKE_SOURCE_DIR}/src/main/main.cc)
+
+if(GTEST_FOUND)
+  include_directories(${GTEST_INCLUDE_DIRS})
+endif()
+
+if(ZLIB_FOUND)
+  include_directories(${ZLIB_INCLUDE_DIRS})
+endif()
+include_directories(src) # Allow paths relative to src, eg. #include common/crc.h
+link_directories(${LINK_DIRECTORIES} ${FUSE_LIBRARY_DIR})
+add_subdirectory(external)
+add_subdirectory(src/admin)
+add_subdirectory(src/common)
+add_subdirectory(src/protocol)
+add_subdirectory(src/mount)
+
+if(ENABLE_POLONAISE)
+  add_subdirectory(src/mount/polonaise)
+endif()
+
+if(NOT MINGW)
+  if(BUILD_DEVTOOLS)
+    add_subdirectory(src/devtools)
+  endif()
+  add_subdirectory(src/chunkserver)
+  add_subdirectory(src/master)
+  add_subdirectory(src/metadump)
+  add_subdirectory(src/metalogger)
+  add_subdirectory(src/metarestore)
+  add_subdirectory(src/tools)
+  if (FUSE_LIBRARY OR FUSE3_LIBRARY)
+    add_subdirectory(src/mount/fuse)
+  endif()
+  add_subdirectory(src/data)
+  add_subdirectory(src/cgi)
+  if(BUILD_UTILS)
+    add_subdirectory(utils)
+  endif()
+  if(ENABLE_DOCS)
+    add_subdirectory(doc)
+  endif()
+  if(ENABLE_NFS_GANESHA)
+    add_subdirectory(src/nfs-ganesha)
+  endif()
+endif()
+
+if(BUILD_TESTS)
+  add_subdirectory(src/unittests)
+  add_subdirectory(tests)
+endif()
+if (ENABLE_URAFT)
+  add_subdirectory(src/uraft)
+endif()

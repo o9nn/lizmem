@@ -1,0 +1,5 @@
+usr/sbin/mfsmaster
+usr/sbin/mfsmetadump
+usr/sbin/mfsmetarestore
+usr/sbin/mfsrestoremaster
+var/lib/lizardfs/metadata.mfs.empty

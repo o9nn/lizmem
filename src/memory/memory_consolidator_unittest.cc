@@ -42,7 +42,7 @@ static MemoryAtom makeAtom(MemorySubsystemTag tag, uint64_t name, float sal) {
 		                  DeclarativePayload{"pred", {}}};
 	case MemorySubsystemTag::kParticipatory:
 		return MemoryAtom{name, tag, sal,
-		                  ParticipatorPayload{"A", "knows", "B"}};
+		                  ParticipatoryPayload{"A", "knows", "B"}};
 	}
 	// unreachable
 	return MemoryAtom{name, tag, sal, WorkingPayload{}};

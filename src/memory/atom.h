@@ -92,7 +92,7 @@ struct DeclarativePayload {
 	std::vector<std::string> arguments;
 };
 
-struct ParticipatorPayload {
+struct ParticipatoryPayload {
 	std::string participant_id;
 	std::string relation_type;
 	std::string target_id;
@@ -104,7 +104,7 @@ using AtomPayload = std::variant<
 	ProceduralPayload,
 	WorkingPayload,
 	DeclarativePayload,
-	ParticipatorPayload>;
+	ParticipatoryPayload>;
 
 /// A single memory atom.
 struct MemoryAtom {

@@ -49,8 +49,9 @@ public:
 
 		auto existing = atoms_.find(key);
 		if (existing != atoms_.end()) {
-			// Remove the old entry from the subsystem index.
-			removeFromIndex(sub, key);
+			// Remove the old entry from the subsystem index using the *old*
+			// subsystem tag, which may differ from the new atom's tag.
+			removeFromIndex(existing->second.subsystem, key);
 		}
 		atoms_.insert_or_assign(key, std::move(atom));
 		subsystem_index_[static_cast<uint8_t>(sub)].push_back(key);

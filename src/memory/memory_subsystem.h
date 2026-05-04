@@ -56,6 +56,15 @@ public:
 protected:
 	AtomSpace &space_;
 
+	/// Default filter: upsert every atom that belongs to this subsystem.
+	void consolidateFiltered(const std::vector<MemoryAtom> &atoms) {
+		for (const auto &a : atoms) {
+			if (a.subsystem == tag_) {
+				space_.upsert(a);
+			}
+		}
+	}
+
 private:
 	MemorySubsystemTag tag_;
 };
@@ -71,11 +80,7 @@ public:
 	    : MemorySubsystem(MemorySubsystemTag::kEpisodic, space) {}
 
 	void consolidate(const std::vector<MemoryAtom> &atoms) override {
-		for (const auto &a : atoms) {
-			if (a.subsystem == MemorySubsystemTag::kEpisodic) {
-				space_.upsert(a);
-			}
-		}
+		consolidateFiltered(atoms);
 	}
 };
 
@@ -86,11 +91,7 @@ public:
 	    : MemorySubsystem(MemorySubsystemTag::kSemantic, space) {}
 
 	void consolidate(const std::vector<MemoryAtom> &atoms) override {
-		for (const auto &a : atoms) {
-			if (a.subsystem == MemorySubsystemTag::kSemantic) {
-				space_.upsert(a);
-			}
-		}
+		consolidateFiltered(atoms);
 	}
 };
 
@@ -101,11 +102,7 @@ public:
 	    : MemorySubsystem(MemorySubsystemTag::kProcedural, space) {}
 
 	void consolidate(const std::vector<MemoryAtom> &atoms) override {
-		for (const auto &a : atoms) {
-			if (a.subsystem == MemorySubsystemTag::kProcedural) {
-				space_.upsert(a);
-			}
-		}
+		consolidateFiltered(atoms);
 	}
 };
 
@@ -141,11 +138,7 @@ public:
 	    : MemorySubsystem(MemorySubsystemTag::kDeclarative, space) {}
 
 	void consolidate(const std::vector<MemoryAtom> &atoms) override {
-		for (const auto &a : atoms) {
-			if (a.subsystem == MemorySubsystemTag::kDeclarative) {
-				space_.upsert(a);
-			}
-		}
+		consolidateFiltered(atoms);
 	}
 };
 
@@ -156,11 +149,7 @@ public:
 	    : MemorySubsystem(MemorySubsystemTag::kParticipatory, space) {}
 
 	void consolidate(const std::vector<MemoryAtom> &atoms) override {
-		for (const auto &a : atoms) {
-			if (a.subsystem == MemorySubsystemTag::kParticipatory) {
-				space_.upsert(a);
-			}
-		}
+		consolidateFiltered(atoms);
 	}
 };
 

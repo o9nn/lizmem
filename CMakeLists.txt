@@ -286,6 +286,7 @@ link_directories(${LINK_DIRECTORIES} ${FUSE_LIBRARY_DIR})
 add_subdirectory(external)
 add_subdirectory(src/admin)
 add_subdirectory(src/common)
+add_subdirectory(src/memory)
 add_subdirectory(src/protocol)
 add_subdirectory(src/mount)
 

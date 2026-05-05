@@ -19,6 +19,7 @@
 #pragma once
 #include "common/platform.h"
 
+#include <cstdint>
 #include <istream>
 #include <map>
 #include <string>
